@@ -15,12 +15,16 @@ Ported from the Avisynth plugin written by James D. Lin
 
 - The filename and mappings parameters are optional; when none of them is specified, an empty string is assumed. 
 
+- There is bounds checking. An Index out of Bounds error will be thrown if an index is out of the clip's frame range.
+
+- If supplying multiple clips to any of the functions, they all should be the same length. *mismatch* does not affect this decision. 
+
 RemapFrames
 ===========
 **Usage**
 ::
-    remap.RemapFrames(clip baseclip[, string filename, string mappings, clip sourceclip]) 
-    remap.Remf(clip baseclip[, string filename, string mappings, clip sourceclip])
+    remap.RemapFrames(clip baseclip[, string filename="", string mappings="", clip sourceclip=baseclip, bint mismatch=False]) 
+    remap.Remf(clip baseclip[, string filename="", string mappings="", clip sourceclip=baseclip, bint mismatch=False])
 Parameters:
     *baseclip*
         Frames from sourceclip are mapped into baseclip.
@@ -31,6 +35,8 @@ Parameters:
     *sourceclip*
         The source clip used to supply the new, remapped frames.
         (Default: Same as baseclip.)
+    *mismatch*
+        Allows supplying clips with varying dimensions, frame rates or formats.
 
 
 Each line in the text file or in the mappings string must have one of the following forms:
@@ -68,8 +74,8 @@ RemapFramesSimple
 =================
 **Usage**
 ::
-    remap.RemapFramesSimple(clip clip[, string filename, string mappings]) 
-    remap.Remfs(clip clip[, string filename, string mappings])
+    remap.RemapFramesSimple(clip clip[, string filename="", string mappings=""]) 
+    remap.Remfs(clip clip[, string filename="", string mappings=""])
 Parameters:
     *baseclip*
         The name of the text file that specifies the new frame mappings.
@@ -93,8 +99,8 @@ ReplaceFramesSimple
 =================
 **Usage**
 ::
-    remap.ReplaceFramesSimple(clip baseclip, clip sourceclip[, string filename, string mappings]) 
-    remap.Rfs(clip baseclip, clip sourceclip[, string filename, string mappings])
+    remap.ReplaceFramesSimple(clip baseclip, clip sourceclip[, string filename="", string mappings="", bint mismatch=False]) 
+    remap.Rfs(clip baseclip, clip sourceclip[, string filename="", string mappings="", bint mismatch=False])
 Parameters:
     *baseclip*
         Frames from sourceclip are mapped into baseclip.
@@ -104,6 +110,8 @@ Parameters:
         The path/name of the text file that specifies the new frame mappings.
     *mappings*
         A string containing frame mappings. Has higher precedence than the mappings from the text file. If both the text file and the mappings string map a frame, the one from the mappings string is chosen.
+     *mismatch*
+        Allows supplying clips with varying dimensions, frame rates or formats.
 
 
 ReplaceFramesSimple takes a text file or a mappings string consisting of sequences or ranges of frame numbers to replace. For example:
