@@ -132,3 +132,11 @@ ReplaceFramesSimple takes a text file or a mappings string consisting of sequenc
       deinterlaced = haf.QTGMC(clip, Preset='Medium', TFF=True)
       # Replace frames 30, 40, 50 with their deinterlaced versions.
       clip = core.remap.Rfs(clip, deinterlaced, mappings="30 40 50")
+
+Building from sources
+=====================
+You need `The Meson Build System <http://mesonbuild.com>`_ installed.
+::
+
+    $ cd /path/to/src/root && mkdir build && cd build && meson --buildtype release .. && ninja  
+    # ninja install
