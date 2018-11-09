@@ -1,6 +1,6 @@
 project('RemapFrames',
         'cpp',
-        default_options : 'buildtype=release',
+        default_options : ['buildtype=release', 'c_std=c11', 'cpp_std=c++11'],
         license : 'BSD-2-Clause',
         version : '1')
 
