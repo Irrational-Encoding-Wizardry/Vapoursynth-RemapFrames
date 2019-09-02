@@ -101,7 +101,7 @@ void VS_CC replaceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *co
 
 	MismatchCauses mismatchCause = findCommonVi(&d.vi, d.node2, vsapi);
 	if (mismatchCause == MismatchCauses::DIFFERENT_LENGTHS) {
-		vsapi->setError(out, "RemapFrames: Clip lengths don't match");
+		vsapi->setError(out, "ReplaceFramesSimple: Clip lengths don't match");
 		vsapi->freeNode(d.node1);
 		vsapi->freeNode(d.node2);
 		return;
@@ -109,29 +109,26 @@ void VS_CC replaceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *co
 
 	if (static_cast<bool>(mismatchCause) && (!mismatch)) {
 		if (mismatchCause == MismatchCauses::DIFFERENT_DIMENSIONS)
-			vsapi->setError(out, "RemapFrames: Clip dimensions don't match");
+			vsapi->setError(out, "ReplaceFramesSimple: Clip dimensions don't match");
 		else if (mismatchCause == MismatchCauses::DIFFERENT_FORMATS)
-			vsapi->setError(out, "RemapFrames: Clip formats don't match");
+			vsapi->setError(out, "ReplaceFramesSimple: Clip formats don't match");
 		else if (mismatchCause == MismatchCauses::DIFFERENT_FRAMERATES)
-			vsapi->setError(out, "RemapFrames: Clip frame rates don't match");
+			vsapi->setError(out, "ReplaceFramesSimple: Clip frame rates don't match");
 		vsapi->freeNode(d.node1);
 		vsapi->freeNode(d.node2);
 		return;
 	}
 
-	d.frameMap.resize(d.vi.numFrames);
-
 	//All frames map to baseclip by default
 	//0 = baseclip
 	//1 = sourceclip
-	for (int i = 0; i < d.frameMap.size(); i++) {
-		d.frameMap[i] = 0;
-	}
+	d.frameMap.assign(d.vi.numFrames, 0);
+
 	try {
 		if (!filename.empty()) {
 			std::ifstream file(filename);
 			if (!file) {
-				vsapi->setError(out, "RemapFrames: Failed to open the timecodes file.");
+				vsapi->setError(out, "ReplaceFramesSimple: Failed to open the timecodes file.");
 				vsapi->freeNode(d.node1);
 				vsapi->freeNode(d.node2);
 				return;

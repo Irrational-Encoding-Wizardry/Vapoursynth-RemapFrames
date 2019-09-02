@@ -103,7 +103,7 @@ void VS_CC remapSimpleCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 		if (!filename.empty()) {
 			std::ifstream file(filename);
 			if (!file) {
-				vsapi->setError(out, "RemapFrames: Failed to open the timecodes file.");
+				vsapi->setError(out, "RemapFramesSimple: Failed to open the timecodes file.");
 				vsapi->freeNode(d.node);
 				return;
 			}

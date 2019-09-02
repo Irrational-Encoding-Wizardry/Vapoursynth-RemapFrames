@@ -101,18 +101,19 @@ MismatchCauses findCommonVi(VSVideoInfo *outVi, VSNodeRef *node2, const VSAPI *v
 			mismatch = MismatchCauses::DIFFERENT_DIMENSIONS;
 		}
 
-		if (outVi->format != vi->format) {
+		else if (outVi->format != vi->format) {
 			outVi->format = 0;
 			mismatch = MismatchCauses::DIFFERENT_FORMATS;
 		}
 
-		if (outVi->fpsNum != vi->fpsNum || outVi->fpsDen != vi->fpsDen) {
+		else if (outVi->fpsNum != vi->fpsNum || outVi->fpsDen != vi->fpsDen) {
 			outVi->fpsDen = 0;
 			outVi->fpsNum = 0;
 			mismatch = MismatchCauses::DIFFERENT_FRAMERATES;
 		}
-		if (outVi->numFrames < vi->numFrames) {
-			outVi->numFrames = vi->numFrames;
+		else if (outVi->numFrames != vi->numFrames) {
+			if(outVi->numFrames < vi->numFrames)
+				outVi->numFrames = vi->numFrames;
 			mismatch = MismatchCauses::DIFFERENT_LENGTHS;
 		}
 	}

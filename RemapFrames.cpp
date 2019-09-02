@@ -16,12 +16,15 @@ static const VSFrameRef *VS_CC remapGetFrame(int n, int activationReason, void *
 	RemapData *d{ static_cast<RemapData*>(*instanceData) };
 
 	if (activationReason == arInitial) {
-		//We check whether node2 is a null pointer. If it is, we use baseclip (node1). 
-		//Else, sourceclip (node2) is used.
-		vsapi->requestFrameFilter(d->frameMap[n], (d->node2 ? d->node2 : d->node1), frameCtx);
+		if (d->frameMap[n] == UINT_MAX)
+			vsapi->requestFrameFilter(n, d->node1, frameCtx);
+		else
+			vsapi->requestFrameFilter(d->frameMap[n], d->node2, frameCtx);
 	}
 	else if (activationReason == arAllFramesReady) {
-		return vsapi->getFrameFilter(d->frameMap[n], (d->node2 ? d->node2 : d->node1), frameCtx);
+		if (d->frameMap[n] == UINT_MAX)
+			return vsapi->getFrameFilter(n, d->node1, frameCtx);
+		return vsapi->getFrameFilter(d->frameMap[n], d->node2, frameCtx);
 	}
 
 	return nullptr;
@@ -30,7 +33,7 @@ static const VSFrameRef *VS_CC remapGetFrame(int n, int activationReason, void *
 static void VS_CC remapFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
 	RemapData *d{ static_cast<RemapData*>(instanceData) };
 	vsapi->freeNode(d->node1);
-	if (d->node2)
+	if (d->node1 != d->node2)
 		vsapi->freeNode(d->node2);
 	delete d;
 }
@@ -78,7 +81,7 @@ static void matchRangeToRange(const std::string &str, int &col, std::vector<unsi
 //
 //If it isn't able to parse the string as any of the above three patterns, it throws a runtime error (Parse Error).
 //Runtime errors (Index out of Bounds, Overflow, or Parse errors) can also be thrown from inside getInt and fillRange.
-static void parse(std::string name, std::vector<unsigned int> &frameMap, void *stream, bool file, int maxFrames) {
+static void parse(std::string name, std::vector<unsigned int> &frameMap, void *stream, bool file, int maxFrames, const VSAPI *vsapi) {
 
 	int line{ 0 }; //Current line. This is simply for throwing detailed errors and has no other use.
 	int col{ 0 }; //Current column. This is used to track the current column position in the string we are at.
@@ -93,42 +96,40 @@ static void parse(std::string name, std::vector<unsigned int> &frameMap, void *s
 	std::string temp;
 	while (file ? std::getline(*static_cast<std::ifstream*>(stream), temp) : std::getline(*static_cast<std::stringstream*>(stream), temp)) {
 		col = 0;
-		skipWhitespace(temp, col);
-		char ch{ getChar(temp, col) };
-		if (ch != 0) {
-			if (ch == '#')
-				continue;
-			else if (std::isdigit(ch) || ch == '-')
-				matchIntToInt(temp, col, frameMap, line, file, maxFrames);
-			else if (ch == '[') {
-				++col;
-				Range rangeIn;
-				fillRange(temp, col, rangeIn, line, file, maxFrames, Filter::REMAP_FRAMES);
-				if (rangeIn.start > rangeIn.end) {
+		while (col < temp.size()) {
+			skipWhitespace(temp, col);
+			char ch{ getChar(temp, col) };
+			if (ch != 0) {
+				if (ch == '#')
+					continue;
+				else if (std::isdigit(ch) || ch == '-')
+					matchIntToInt(temp, col, frameMap, line, file, maxFrames);
+				else if (ch == '[') {
+					++col;
+					Range rangeIn;
+					fillRange(temp, col, rangeIn, line, file, maxFrames, Filter::REMAP_FRAMES);
+					if (rangeIn.start > rangeIn.end) {
+						std::string location{ file ? " text file " : " mappings " };
+						std::string error{ "RemapFrames: Index out of bounds in" + location + "at line " + std::to_string(line + 1) + ", column " + std::to_string(col + 1) };
+						throw std::runtime_error(error);
+					}
+					skipWhitespace(temp, col);
+					ch = getChar(temp, col);
+					if (ch != 0) {
+						if (std::isdigit(ch) || ch == '-') {
+							matchRangeToInt(temp, col, frameMap, rangeIn, line, file, maxFrames);
+						}
+						else if (ch == '[') {
+							++col;
+							matchRangeToRange(temp, col, frameMap, rangeIn, line, file, maxFrames);
+						}
+					}
+				}
+				else {
 					std::string location{ file ? " text file " : " mappings " };
-					std::string error{ "RemapFrames: Index out of bounds in" + location + "at line " + std::to_string(line + 1) + ", column " + std::to_string(col + 1) };
+					std::string error{ "RemapFrames: Parse Error in" + location + "at line " + std::to_string(line + 1) + ", column " + std::to_string(col + 1) };
 					throw std::runtime_error(error);
 				}
-				skipWhitespace(temp, col);
-				ch = getChar(temp, col);
-				if (ch != 0) {
-					if (std::isdigit(ch) || ch == '-')
-						matchRangeToInt(temp, col, frameMap, rangeIn, line, file, maxFrames);
-					else if (ch == '[')
-						++col;
-					matchRangeToRange(temp, col, frameMap, rangeIn, line, file, maxFrames);
-				}
-			}
-			else {
-				std::string location{ file ? " text file " : " mappings " };
-				std::string error{ "RemapFrames: Parse Error in" + location + "at line " + std::to_string(line + 1) + ", column " + std::to_string(col + 1) };
-				throw std::runtime_error(error);
-			}
-			skipWhitespace(temp, col);
-			if (col != temp.size()) {
-				std::string location{ file ? " text file " : " mappings " };
-				std::string error{ "RemapFrames: Parse Error in" + location + "at line " + std::to_string(line + 1) + ", column " + std::to_string(col + 1) };
-				throw std::runtime_error(error);
 			}
 		}
 		line++;
@@ -148,7 +149,7 @@ void VS_CC remapCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core
 		filename = "";
 	else
 		filename = fn;
-	
+
 	std::string mappings;
 	const char* mp{ vsapi->propGetData(in, "mappings", 0, &err) };
 	if (err)
@@ -156,10 +157,10 @@ void VS_CC remapCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core
 	else
 		mappings = mp;
 
-	//If sourceclip is not provided, we set node2 to a null pointer.
+	//If sourceclip is not provided, we set sourceclip equal to baseclip.
 	d.node2 = vsapi->propGetNode(in, "sourceclip", 0, &err);
 	if (err)
-		d.node2 = nullptr;
+		d.node2 = d.node1;
 
 	bool mismatch{ !!vsapi->propGetInt(in, "mismatch", 0, &err) };
 	if (err)
@@ -169,9 +170,12 @@ void VS_CC remapCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core
 	MismatchCauses mismatchCause = findCommonVi(&d.vi, d.node2, vsapi);
 	if (mismatchCause == MismatchCauses::DIFFERENT_LENGTHS) {
 		vsapi->setError(out, "RemapFrames: Clip lengths don't match");
+		//Free baseclip.
 		vsapi->freeNode(d.node1);
-		if (d.node2)
-			vsapi->freeNode(d.node2); //We check whether node2 is a null pointer. If it isn't, we free the node.
+		//If sourceclip and baseclip aren't the same, then free sourceclip.
+		//freeNode(node) doesn't change the value of node so the comparison is safe.
+		if (d.node1 != d.node2)
+			vsapi->freeNode(d.node2);
 		return;
 	}
 
@@ -183,19 +187,15 @@ void VS_CC remapCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core
 		else if (mismatchCause == MismatchCauses::DIFFERENT_FRAMERATES)
 			vsapi->setError(out, "RemapFrames: Clip frame rates don't match");
 		vsapi->freeNode(d.node1);
-		if (d.node2)
+		if (d.node1 != d.node2)
 			vsapi->freeNode(d.node2);
 		return;
 	}
 
 	//We use a vector to store frame mappings. Each index represents a frame number,
 	//and each value at that index represents which frame it going to be replaced with.
-	d.frameMap.resize(d.vi.numFrames);
-	
-	//All frames map to themselves by default.
-	for (int i = 0; i < d.frameMap.size(); i++) {
-		d.frameMap[i] = i;
-	}
+	//A value of UINT_MAX indicates that the frame doesn't need to be replaced.
+	d.frameMap.assign(d.vi.numFrames, UINT_MAX);
 
 	//Enclosed in a try catch block to catch any runtime errors.
 	//Frame mappings in the mappings string have higher precedence than
@@ -207,21 +207,21 @@ void VS_CC remapCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core
 			if (!file) {
 				vsapi->setError(out, "RemapFrames: Failed to open the timecodes file.");
 				vsapi->freeNode(d.node1);
-				if (d.node2)
+				if (d.node1 != d.node2)
 					vsapi->freeNode(d.node2);
 				return;
 			}
-			parse(filename, d.frameMap, &file, true, d.vi.numFrames);
+			parse(filename, d.frameMap, &file, true, d.vi.numFrames, vsapi);
 		}
 		if (!mappings.empty()) {
 			std::stringstream stream(mappings);
-			parse(mappings, d.frameMap, &stream, false, d.vi.numFrames);
+			parse(mappings, d.frameMap, &stream, false, d.vi.numFrames, vsapi);
 		}
 	}
 	catch (const std::exception &ex) {
 		vsapi->setError(out, ex.what());
 		vsapi->freeNode(d.node1);
-		if (d.node2)
+		if (d.node1 != d.node2)
 			vsapi->freeNode(d.node2);
 		return;
 	}
